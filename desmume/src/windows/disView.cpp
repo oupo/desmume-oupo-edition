@@ -118,7 +118,7 @@ LRESULT DisViewBox_OnPaint(HWND hwnd, disview_struct *win, WPARAM wParam, LPARAM
              u32 i;
              u32 adr;
              if (win->autoup)
-                  win->curr_ligne = (win->cpu->instruct_adr >> 1) - (win->curr_ligne % nbligne) ;
+                  win->curr_ligne = (win->cpu->instruct_adr >> 1); // - (win->curr_ligne % nbligne) ;
              
              adr = win->curr_ligne*2;
         
