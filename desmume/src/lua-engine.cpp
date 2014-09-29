@@ -2053,6 +2053,8 @@ registerPointerMap arm9PointerMap [] = {
 	RPM_ENTRY("r15", NDS_ARM9.R[15])
 	RPM_ENTRY("cpsr", NDS_ARM9.CPSR.val)
 	RPM_ENTRY("spsr", NDS_ARM9.SPSR.val)
+	RPM_ENTRY("curr_insn_addr", NDS_ARM9.instruct_adr)
+	RPM_ENTRY("next_insn_addr", NDS_ARM9.next_instruction)
 	{}
 };
 registerPointerMap arm7PointerMap [] = {
@@ -2074,6 +2076,8 @@ registerPointerMap arm7PointerMap [] = {
 	RPM_ENTRY("r15", NDS_ARM7.R[15])
 	RPM_ENTRY("cpsr", NDS_ARM7.CPSR.val)
 	RPM_ENTRY("spsr", NDS_ARM7.SPSR.val)
+	RPM_ENTRY("curr_insn_addr", NDS_ARM7.instruct_adr)
+	RPM_ENTRY("next_insn_addr", NDS_ARM7.next_instruction)
 	{}
 };
 
