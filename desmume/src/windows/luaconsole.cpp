@@ -288,6 +288,13 @@ void OnStart(int hDlgAsInt)
 	SetWindowText(GetDlgItem(hDlg, IDC_BUTTON_LUARUN), "Restart");
 	SetWindowText(GetDlgItem(hDlg, IDC_LUACONSOLE), ""); // clear the console
 //	Show_Genesis_Screen(HWnd); // otherwise we might never show the first thing the script draws
+
+	/*
+	// *HACK* this code neglects to release hFont.
+	HFONT hFont = CreateFont(45, 0, 0, 0, FW_MEDIUM, FALSE, FALSE, FALSE, DEFAULT_CHARSET, 
+		OUT_DEFAULT_PRECIS, CLIP_DEFAULT_PRECIS, DEFAULT_QUALITY, FIXED_PITCH, "");
+	SendMessage(GetDlgItem(hDlg, IDC_LUACONSOLE), WM_SETFONT, (WPARAM)hFont, 0);
+	*/
 }
 
 void OnStop(int hDlgAsInt, bool statusOK)
