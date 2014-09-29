@@ -93,12 +93,13 @@ static inline u8 toBCD(u8 x)
 }
 
 bool moviemode=false;
+TimeSpan HIJACK_TIME_DIFF(0);
 
 DateTime rtcGetTime(void)
 {
 	DateTime tm;
 	if(movieMode == MOVIEMODE_INACTIVE) {
-		return DateTime::get_Now();
+		return DateTime::get_Now().Add(HIJACK_TIME_DIFF);
 	}
 	else {
 		//now, you might think it is silly to go through all these conniptions

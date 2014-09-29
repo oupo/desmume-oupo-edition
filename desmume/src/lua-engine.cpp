@@ -1124,6 +1124,24 @@ DEFINE_LUA_FUNCTION(print, "...")
 }
 
 
+extern TimeSpan HIJACK_TIME_DIFF;
+
+DEFINE_LUA_FUNCTION(emu_hijacktime, "year,month,day,hour,minute,second,millisecond")
+{
+	int year = luaL_checkinteger(L,1);
+	int month = luaL_checkinteger(L,2);
+	int day = luaL_checkinteger(L,3);
+	int hour = luaL_checkinteger(L,4);
+	int minute = luaL_checkinteger(L,5);
+	int second = luaL_checkinteger(L,6);
+	int millisecond = luaL_checkinteger(L,7);
+	DateTime now = DateTime::get_Now();
+	DateTime newDate(year,month,day,hour,minute,second,millisecond);
+	HIJACK_TIME_DIFF = newDate.Subtract(now);
+	return 0;
+}
+
+
 DEFINE_LUA_FUNCTION(emu_message, "str")
 {
 	const char* str = toCString(L);
@@ -4532,6 +4550,7 @@ static const struct luaL_reg emulib [] =
 	{"registerexit", emu_registerexit},
 	{"persistglobalvariables", emu_persistglobalvariables},
 	{"message", emu_message},
+	{"hijackttime", emu_hijacktime},
 	{"print", print}, // sure, why not
 	{"openscript", emu_openscript},
 //	{"loadrom", emu_loadrom},
