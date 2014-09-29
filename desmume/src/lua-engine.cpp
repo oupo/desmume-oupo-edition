@@ -40,6 +40,7 @@
 #else
 #include <unistd.h>
 #endif
+#include "Disassembler.h"
 
 using namespace std;
 
@@ -448,6 +449,138 @@ DEFINE_LUA_FUNCTION(input_registerhotkey, "keynum,func")
 		return 1;
 	}
 }
+
+static char *str_tolower(char *txt) {
+	for (int i = 0; txt[i] != '\0'; i ++) {
+		txt[i] = tolower(txt[i]);
+	}
+	return txt;
+}
+
+static void fix_arm_disasm(u32 addr, u32 ins, char *txt)
+{
+	str_tolower(txt);
+	if ((ins & 0x0FF00000) == 0x05900000 && REG_POS(ins,16) == 15) { // OP_LDR_P_IMM_OFF
+		u32 val = _MMU_read32<ARMCPU_ARM9>(addr + 8 + (int)(ins&0x7FF));
+		sprintf(txt + strlen(txt), " ; %.8x", val);
+	}
+	if ((ins & 0x0FF00000) == 0x05100000 && REG_POS(ins,16) == 15) { // OP_LDR_M_IMM_OFF
+		u32 val = _MMU_read32<ARMCPU_ARM9>(addr + 8 - (int)(ins&0x7FF));
+		sprintf(txt + strlen(txt), " ; %.8x", val);
+	}
+}
+
+static void fix_thumb_disasm(u32 addr, u32 ins, char *txt)
+{
+	str_tolower(txt);
+	if ((ins & 0xf800) == 0x4800) { // OP_LDR_PCREL
+		u32 val = _MMU_read32<ARMCPU_ARM9>((addr + 4 & 0xFFFFFFFC) + (int)((ins&0xFF)<<2));
+		sprintf(txt + strlen(txt), " ; %.8x", val);
+	}
+}
+
+#define SIGNEXTEND_24(i) (((s32)i<<8)>>8)
+#define SIGNEEXT_IMM11(i)     (((i)&0x7FF) | (BIT10(i) * 0xFFFFF800))
+
+static u32 get_jump_destionation_arm(u32 addr, u32 ins)
+{
+	if ((ins & 0x0f000000) == 0x0a000000 && CONDITION(ins)!=0xF) { // OP_B
+		return addr+(SIGNEXTEND_24(ins)<<2)+8;
+	}
+	return 0;
+}
+
+static u32 get_jump_destionation_thumb(u32 addr, u32 ins)
+{
+	if (0xd000 <= ins && ins <= 0xdeff) { // OP_B_COND
+		return addr+(((s32)((signed char)(ins&0xFF)))<<1)+4;
+	}
+	if (0xe000 <= ins && ins <= 0xe7ff) { // OP_B_UNCOND
+		return addr+(SIGNEEXT_IMM11(ins)<<1)+4;
+	}
+	return 0;
+}
+
+static void gen_insn_referred(std::vector<bool> &referred, u32 start_addr, u32 end_addr, bool is_thumb)
+{
+	int insn_size = is_thumb ? 2 : 4;
+	referred.resize((end_addr - start_addr) / insn_size, false);
+	for (u32 addr = start_addr; addr < end_addr; addr += insn_size) {
+		u32 dest_addr;
+		if (is_thumb) {
+			dest_addr = get_jump_destionation_thumb(addr, _MMU_read16<ARMCPU_ARM9>(addr));
+		} else {
+			dest_addr = get_jump_destionation_arm(addr, _MMU_read32<ARMCPU_ARM9>(addr));
+		}
+		if (dest_addr != 0 && start_addr <= dest_addr && dest_addr < end_addr) {
+			referred[(dest_addr - start_addr) / insn_size] = true;
+		}
+	}
+}
+
+static void OutputDisasm(const char *filename, int start_addr, int len, bool is_thumb)
+{
+	FILE *fp = fopen(filename, "wb");
+	char txt[100];
+	std::vector<bool> referred;
+	u32 end_addr = start_addr + len;
+	gen_insn_referred(referred, start_addr, end_addr, is_thumb);
+	
+	for (u32 addr = start_addr, i = 0; addr < end_addr; addr += is_thumb ? 2 : 4, i ++) {
+		u32 ins, dest_addr;
+		if (is_thumb) {
+			ins = _MMU_read16<ARMCPU_ARM9>(addr);
+			des_thumb_instructions_set[ins>>6](addr, ins, txt);
+			fix_thumb_disasm(addr, ins, txt);
+			dest_addr = get_jump_destionation_thumb(addr, ins);
+		} else {
+			ins = _MMU_read32<ARMCPU_ARM9>(addr);
+			des_arm_instructions_set[INSTRUCTION_INDEX(ins)](addr, ins, txt);
+			fix_arm_disasm(addr, ins, txt);
+			dest_addr = get_jump_destionation_arm(addr, ins);
+		}
+		char c = (dest_addr != 0 && dest_addr < addr) ? '*' : referred[i] ? '|' : ':';
+		fprintf(fp, "%c%08X %0*X %s\n", c, addr, is_thumb ? 4 : 8, ins, txt);
+	}
+	fclose(fp);
+}
+
+DEFINE_LUA_FUNCTION(emu_output_disasm_arm, "filename,addr,len")
+{
+	const char *filename = luaL_checkstring(L,1);
+	int addr = luaL_checkinteger(L,2);
+	int len = luaL_checkinteger(L,3);
+	OutputDisasm(filename, addr, len, false);
+	return 0;
+}
+
+DEFINE_LUA_FUNCTION(emu_output_disasm_thumb, "filename,addr,len")
+{
+	const char *filename = luaL_checkstring(L,1);
+	int addr = luaL_checkinteger(L,2);
+	int len = luaL_checkinteger(L,3);
+	OutputDisasm(filename, addr, len, true);
+	return 0;
+}
+
+DEFINE_LUA_FUNCTION(emu_disasm, "addr,thumb")
+{
+	char txt[100];
+	int addr = luaL_checkinteger(L,1);
+	bool thumb = lua_toboolean(L,2) != 0;
+	if (thumb) {
+		u32 ins = _MMU_read16(ARMCPU_ARM9, MMU_AT_DEBUG, addr);
+		des_thumb_instructions_set[ins>>6](addr, ins, txt);
+		fix_thumb_disasm(addr, ins, txt);
+	} else {
+		u32 ins = _MMU_read32(ARMCPU_ARM9, MMU_AT_DEBUG, addr);
+		des_arm_instructions_set[INSTRUCTION_INDEX(ins)](addr, ins, txt);
+		fix_arm_disasm(addr, ins, txt);
+	}
+	lua_pushstring(L, txt);
+	return 1;
+}
+
 
 static int doPopup(lua_State* L, const char* deftype, const char* deficon)
 {
@@ -4560,6 +4693,9 @@ static const struct luaL_reg emulib [] =
 	{"registermenustart", emu_registermenustart},
 	// alternative names
 //	{"openrom", emu_loadrom},
+	{"output_disasm_arm", emu_output_disasm_arm},
+	{"output_disasm_thumb", emu_output_disasm_thumb},
+	{"disasm", emu_disasm},
 	{NULL, NULL}
 };
 static const struct luaL_reg guilib [] =
