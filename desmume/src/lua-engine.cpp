@@ -4652,6 +4652,25 @@ static int gcEMUFILE_MEMORY(lua_State *L)
 	return 0;
 }
 
+DEFINE_LUA_FUNCTION(WideCharToMultiByte_for_lua, "u16array")
+{
+	luaL_checktype(L, 1, LUA_TTABLE);
+	int len = lua_objlen(L, 1);
+	std::vector<WCHAR> wstr;
+
+	for (int i = 0; i < len; i++) {
+		lua_rawgeti(L, 1, i + 1);
+		wstr.push_back(lua_tointeger(L, -1));
+		lua_pop(L, 1);
+	}
+
+	int res = WideCharToMultiByte(CP_ACP, 0, &wstr[0], len, NULL, 0, NULL, NULL);
+	std::vector<CHAR> str(res+1);
+	WideCharToMultiByte(CP_ACP, 0, &wstr[0], len, &str[0], res, NULL, NULL);
+	lua_pushstring(L, &str[0]);
+	return 1;
+}
+
 
 static const struct luaL_reg styluslib [] =
 {
@@ -5026,6 +5045,8 @@ void registerLibs(lua_State* L)
 	lua_register(L, "XOR", bit_bxor);
 	lua_register(L, "SHIFT", bitshift);
 	lua_register(L, "BIT", bitbit);
+
+	lua_register(L, "WideCharToMultiByte", WideCharToMultiByte_for_lua);
 
 	luabitop_validate(L);
 
