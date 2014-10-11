@@ -620,6 +620,13 @@ u32 armcpu_exec()
 			DEBUG_statistics.instructionHits[PROCNUM].arm[INSTRUCTION_INDEX(ARMPROC.instruction)]++;
 			#endif
 			cExecute = arm_instructions_set[PROCNUM][INSTRUCTION_INDEX(ARMPROC.instruction)](ARMPROC.instruction);
+#ifdef HAVE_LUA
+			u32 insn = INSTRUCTION_INDEX(ARMPROC.instruction);
+			if (PROCNUM == 0 && (insn == 0x123 // OP_BLX_REG
+				|| (0xb00 <= insn && insn < 0xc00))) { // OP_BL
+				CallRegisteredLuaFunctions(LUACALL_ONBLINSTRUCTION);
+			}
+#endif
 		}
 		else
 			cExecute = 1; // If condition=false: 1S cycle
@@ -641,6 +648,14 @@ u32 armcpu_exec()
 	DEBUG_statistics.instructionHits[PROCNUM].thumb[ARMPROC.instruction>>6]++;
 	#endif
 	cExecute = thumb_instructions_set[PROCNUM][ARMPROC.instruction>>6](ARMPROC.instruction);
+#ifdef HAVE_LUA
+	u32 insn = ARMPROC.instruction >> 6;
+	if (PROCNUM == 0 && ((0x3a0 <= insn && insn < 0x3c0) // OP_BLX
+		|| (0x3e0 <= insn && insn < 0x400) // OP_BL11
+		|| (0x11e <= insn && insn < 0x120))) { // OP_BLX_THUMB
+		CallRegisteredLuaFunctions(LUACALL_ONBLINSTRUCTION);
+	}
+#endif
 
 #ifdef GDB_STUB
 	if ( ARMPROC.post_ex_fn != NULL) {

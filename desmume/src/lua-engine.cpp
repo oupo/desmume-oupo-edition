@@ -185,6 +185,7 @@ static const char* luaCallIDStrings [] =
 	"CALL_AFTERLOAD",
 	"CALL_ONSTART",
 	"CALL_ONINITMENU",
+	"CALL_ONBLINSTRUCTION",
 
 	"CALL_HOTKEY_1",
 	"CALL_HOTKEY_2",
@@ -387,6 +388,17 @@ DEFINE_LUA_FUNCTION(emu_registerstart, "func") // TODO: use call registered LUAC
 	lua_setfield(L, LUA_REGISTRYINDEX, luaCallIDStrings[LUACALL_ONSTART]);
 	if (!lua_isnil(L,-1) && driver->EMU_HasEmulationStarted())
 		lua_call(L,0,0); // call the function now since the game has already started and this start function hasn't been called yet
+	StopScriptIfFinished(luaStateToUIDMap[L->l_G->mainthread]);
+	return 1;
+}
+DEFINE_LUA_FUNCTION(emu_registerblinstruction, "func")
+{
+	if (!lua_isnil(L,1))
+		luaL_checktype(L, 1, LUA_TFUNCTION);
+	lua_settop(L,1);
+	lua_getfield(L, LUA_REGISTRYINDEX, luaCallIDStrings[LUACALL_ONBLINSTRUCTION]);
+	lua_insert(L,1);
+	lua_setfield(L, LUA_REGISTRYINDEX, luaCallIDStrings[LUACALL_ONBLINSTRUCTION]);
 	StopScriptIfFinished(luaStateToUIDMap[L->l_G->mainthread]);
 	return 1;
 }
@@ -4704,6 +4716,7 @@ static const struct luaL_reg emulib [] =
 	{"registerafter", emu_registerafter},
 	{"registerstart", emu_registerstart},
 	{"registerexit", emu_registerexit},
+	{"registerblinstruction", emu_registerblinstruction},
 	{"persistglobalvariables", emu_persistglobalvariables},
 	{"message", emu_message},
 	{"hijackttime", emu_hijacktime},
